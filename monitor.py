@@ -1,9 +1,11 @@
+import os
 import random
 
 import requests
 from DrissionPage import ChromiumPage, ChromiumOptions
 
 from DrissionPage.common import Settings
+from dotenv import load_dotenv
 
 min_price = float('inf')
 
@@ -38,7 +40,9 @@ class Monitor:
             print(e)
 
     def notify(self):
-        requests.post('https://open.feishu.cn/open-apis/bot/v2/hook/f958efb6-3256-4a9c-a0e5-a12c60e2cd10', json={
+        load_dotenv()
+        WEBHOOK_URL = os.getenv('LARK_WEBHOOK_URL')
+        requests.post(WEBHOOK_URL, json={
             "msg_type": "text",
             "content": {
                 "text": "The price of {} is ${} {}".format(self.name, min_price, self.url)
