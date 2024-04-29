@@ -1,5 +1,6 @@
 import os
 import random
+import time
 
 import requests
 from DrissionPage import ChromiumPage, ChromiumOptions
@@ -8,6 +9,10 @@ from DrissionPage.common import Settings
 from dotenv import load_dotenv
 
 min_price = float('inf')
+pre_min_price = float('inf')
+name = ""
+url = ""
+pre_notify_time = 0
 
 
 class Monitor:
@@ -27,32 +32,50 @@ class Monitor:
         self.page.wait.load_complete()
         # self.page.get_screenshot(path='./', name='pic.jpg', full_page=True)
 
-    def get_price(self):
+    def update_price(self):
         self.load_price_page()
         global min_price
+        global name
+        global url
         try:
             price = self.page.ele(".{}".format(self.class_name)).text
             price = float(price[1:].replace(',', ''))
             if price < min_price:
                 min_price = price
-                self.notify()
+                name = self.name
+                url = self.url
         except Exception as e:
             print(e)
 
-    def notify(self):
+    @staticmethod
+    def notify():
+        global pre_notify_time
+        global name
+        global url
+        if min_price < pre_min_price:
+            text = "在{}发现新的最低价格:${},地址:{}".format(name, min_price, url)
+        elif pre_notify_time + 24 * 3600_000 > int(round(time.time() * 1000)):
+            pre_notify_time = int(round(time.time() * 1000))
+            text = "价格未更新,最低价格仍然是:{},价格为:${}，地址:{}".format(name, min_price, url)
+        else:
+            return
         load_dotenv()
         WEBHOOK_URL = os.getenv('LARK_WEBHOOK_URL')
         requests.post(WEBHOOK_URL, json={
             "msg_type": "text",
             "content": {
-                "text": "The price of {} is ${} {}".format(self.name, min_price, self.url)
+                "text": text
             }
         })
-        print("The price of {} is ${}".format(self.name, min_price))
+        global pre_notify_time
+        pre_notify_time = int(round(time.time() * 1000))
 
     # 创建静态方法
     @staticmethod
     def job(georges_monitor, digi_direct_monitor, teds_monitor):
-        georges_monitor.get_price()
-        digi_direct_monitor.get_price()
-        teds_monitor.get_price()
+        global pre_min_price
+        pre_min_price = min_price
+        georges_monitor.update_price()
+        digi_direct_monitor.update_price()
+        teds_monitor.update_price()
+        Monitor.notify()
